@@ -11,6 +11,9 @@ import AppKit
 final class StatusBarController: NSObject {
     private let onPrimaryClick: () -> Void
     private let onOpenHistory: () -> Void
+    private let onCaptureScreenshot: () -> Void
+    private let onClearUnpinned: () -> Void
+    private let onClearAll: () -> Void
     private let onToggleMonitoring: () -> Void
     private let isMonitoringEnabled: () -> Bool
 
@@ -20,6 +23,11 @@ final class StatusBarController: NSObject {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.addItem(openItem)
+        menu.addItem(screenshotItem)
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(clearUnpinnedItem)
+        menu.addItem(clearAllItem)
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(toggleMonitorItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(quitItem)
@@ -36,10 +44,40 @@ final class StatusBarController: NSObject {
         return item
     }()
 
+    private lazy var screenshotItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Screenshot to Clipboard",
+            action: #selector(captureScreenshotFromMenu),
+            keyEquivalent: ""
+        )
+        item.target = self
+        return item
+    }()
+
     private lazy var toggleMonitorItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Pause Monitoring",
             action: #selector(toggleMonitoringFromMenu),
+            keyEquivalent: ""
+        )
+        item.target = self
+        return item
+    }()
+
+    private lazy var clearUnpinnedItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Clear Unpinned",
+            action: #selector(clearUnpinnedFromMenu),
+            keyEquivalent: ""
+        )
+        item.target = self
+        return item
+    }()
+
+    private lazy var clearAllItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Clear All",
+            action: #selector(clearAllFromMenu),
             keyEquivalent: ""
         )
         item.target = self
@@ -59,11 +97,17 @@ final class StatusBarController: NSObject {
     init(
         onPrimaryClick: @escaping () -> Void,
         onOpenHistory: @escaping () -> Void,
+        onCaptureScreenshot: @escaping () -> Void,
+        onClearUnpinned: @escaping () -> Void,
+        onClearAll: @escaping () -> Void,
         onToggleMonitoring: @escaping () -> Void,
         isMonitoringEnabled: @escaping () -> Bool
     ) {
         self.onPrimaryClick = onPrimaryClick
         self.onOpenHistory = onOpenHistory
+        self.onCaptureScreenshot = onCaptureScreenshot
+        self.onClearUnpinned = onClearUnpinned
+        self.onClearAll = onClearAll
         self.onToggleMonitoring = onToggleMonitoring
         self.isMonitoringEnabled = isMonitoringEnabled
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -109,8 +153,20 @@ final class StatusBarController: NSObject {
         onOpenHistory()
     }
 
+    @objc private func captureScreenshotFromMenu() {
+        onCaptureScreenshot()
+    }
+
     @objc private func toggleMonitoringFromMenu() {
         onToggleMonitoring()
+    }
+
+    @objc private func clearUnpinnedFromMenu() {
+        onClearUnpinned()
+    }
+
+    @objc private func clearAllFromMenu() {
+        onClearAll()
     }
 
     @objc private func quitFromMenu() {

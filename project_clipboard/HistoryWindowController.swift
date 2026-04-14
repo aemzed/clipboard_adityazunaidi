@@ -35,6 +35,10 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
         show(window)
     }
 
+    func hide() {
+        window?.orderOut(nil)
+    }
+
     private func show(_ window: NSWindow) {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)

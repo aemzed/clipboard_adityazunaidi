@@ -106,6 +106,10 @@ struct ContentView: View {
                             isShowingShortcutSettings = true
                         }
 
+                        Button("Screenshot", systemImage: "camera.viewfinder") {
+                            lifecycle.captureScreenshotToClipboard()
+                        }
+
                         Button("Open Window", systemImage: "rectangle.inset.filled.and.person.filled") {
                             NSApp.sendAction(#selector(AppDelegate.openHistoryWindow), to: nil, from: nil)
                         }

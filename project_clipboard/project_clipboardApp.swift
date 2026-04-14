@@ -29,6 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func openHistoryWindow() {
         AppLifecycle.shared.toggleHistoryWindow()
     }
+
+    @objc func captureScreenshotToClipboard() {
+        AppLifecycle.shared.captureScreenshotToClipboard()
+    }
 }
 
 @MainActor
@@ -84,6 +88,15 @@ final class AppLifecycle: ObservableObject {
             onOpenHistory: { [weak self] in
                 self?.showHistoryWindow()
             },
+            onCaptureScreenshot: { [weak self] in
+                self?.captureScreenshotToClipboard()
+            },
+            onClearUnpinned: { [weak self] in
+                self?.store.clearUnpinned()
+            },
+            onClearAll: { [weak self] in
+                self?.store.clearAll()
+            },
             onToggleMonitoring: { [weak self] in
                 guard let self else { return }
                 self.monitor.setMonitoring(!self.monitor.isMonitoring)
@@ -127,6 +140,27 @@ final class AppLifecycle: ObservableObject {
 
     func showHistoryWindow() {
         windowController.show()
+    }
+
+    func captureScreenshotToClipboard() {
+        windowController.hide()
+
+        // Let the window finish hiding before invoking interactive screenshot UI.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            self.runScreenshotCapture()
+        }
+    }
+
+    private func runScreenshotCapture() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-i", "-c", "-x"]
+
+        do {
+            try process.run()
+        } catch {
+            NSLog("Failed to launch screenshot tool: \(error)")
+        }
     }
 
     private func activateShortcut(preferred: HotKeyShortcut) -> Bool {
