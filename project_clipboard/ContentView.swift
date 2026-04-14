@@ -42,11 +42,17 @@ struct ContentView: View {
                 NavigationSplitView {
                     List(selection: $selectedID) {
                         if filteredEntries.isEmpty {
-                            ContentUnavailableView(
-                                searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil",
-                                systemImage: "doc.text.magnifyingglass",
-                                description: Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
-                            )
+                            ContentUnavailableView {
+                                Label {
+                                    Text(searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil")
+                                        .font(.title3.weight(.semibold))
+                                } icon: {
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                }
+                            } description: {
+                                Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
+                                    .font(.body)
+                            }
                         } else {
                             ForEach(filteredEntries) { entry in
                                 ClipboardRow(entry: entry)
