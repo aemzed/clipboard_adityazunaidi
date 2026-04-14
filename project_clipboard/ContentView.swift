@@ -77,7 +77,7 @@ struct ContentView: View {
                         .onDelete(perform: deleteItems)
                     }
                 }
-                .navigationSplitViewColumnWidth(min: 260, ideal: 360)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 420)
                 .searchable(text: $searchText, placement: .sidebar, prompt: "Cari history")
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
