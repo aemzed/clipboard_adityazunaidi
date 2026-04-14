@@ -38,96 +38,101 @@ struct ContentView: View {
             TranslucentBackgroundView(material: .underWindowBackground)
                 .ignoresSafeArea()
 
-            NavigationSplitView {
-                List(selection: $selectedID) {
-                    if filteredEntries.isEmpty {
-                        ContentUnavailableView(
-                            searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil",
-                            systemImage: "doc.text.magnifyingglass",
-                            description: Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
-                        )
-                    } else {
-                        ForEach(filteredEntries) { entry in
-                            ClipboardRow(entry: entry)
-                                .tag(entry.id)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    if selectedID == entry.id {
-                                        copyEntry(entry)
-                                    } else {
-                                        selectedID = entry.id
-                                    }
-                                }
-                                .contextMenu {
-                                    Button("Copy Ulang", systemImage: "doc.on.doc") {
-                                        copyEntry(entry)
-                                    }
-
-                                    Button(entry.isPinned ? "Lepas Pin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
-                                        store.togglePin(for: entry.id)
-                                    }
-
-                                    Divider()
-
-                                    Button("Hapus", systemImage: "trash", role: .destructive) {
-                                        deleteEntry(entry)
-                                    }
-                                }
-                        }
-                        .onDelete(perform: deleteItems)
-                    }
-                }
-                .navigationSplitViewColumnWidth(min: 300, ideal: 420)
-                .searchable(text: $searchText, placement: .sidebar, prompt: "Cari history")
-                .scrollContentBackground(.hidden)
-                .background(Color.clear)
-                .toolbar {
-                    ToolbarItemGroup(placement: .automatic) {
-                        Button {
-                            monitor.setMonitoring(!monitor.isMonitoring)
-                        } label: {
-                            Label(
-                                monitor.isMonitoring ? "Pause Monitor" : "Resume Monitor",
-                                systemImage: monitor.isMonitoring ? "pause.circle" : "play.circle"
+            GeometryReader { proxy in
+                NavigationSplitView {
+                    List(selection: $selectedID) {
+                        if filteredEntries.isEmpty {
+                            ContentUnavailableView(
+                                searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil",
+                                systemImage: "doc.text.magnifyingglass",
+                                description: Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
                             )
-                        }
+                        } else {
+                            ForEach(filteredEntries) { entry in
+                                ClipboardRow(entry: entry)
+                                    .tag(entry.id)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        if selectedID == entry.id {
+                                            copyEntry(entry)
+                                        } else {
+                                            selectedID = entry.id
+                                        }
+                                    }
+                                    .contextMenu {
+                                        Button("Copy Ulang", systemImage: "doc.on.doc") {
+                                            copyEntry(entry)
+                                        }
 
-                        Button(role: .destructive, action: clearUnpinned) {
-                            Label("Clear Unpinned", systemImage: "trash")
-                        }
-                        .disabled(store.entries.isEmpty)
+                                        Button(entry.isPinned ? "Lepas Pin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
+                                            store.togglePin(for: entry.id)
+                                        }
 
-                        Button(role: .destructive, action: clearAll) {
-                            Label("Clear All", systemImage: "trash.fill")
-                        }
-                        .disabled(store.entries.isEmpty)
+                                        Divider()
 
-                        Button("Shortcut", systemImage: "keyboard") {
-                            isShowingShortcutSettings = true
-                        }
-
-                        Button("Screenshot", systemImage: "camera.viewfinder") {
-                            lifecycle.captureScreenshotToClipboard()
-                        }
-
-                        Button("Open Window", systemImage: "rectangle.inset.filled.and.person.filled") {
-                            NSApp.sendAction(#selector(AppDelegate.openHistoryWindow), to: nil, from: nil)
-                        }
-
-                        Button("Quit", systemImage: "power") {
-                            NSApplication.shared.terminate(nil)
+                                        Button("Hapus", systemImage: "trash", role: .destructive) {
+                                            deleteEntry(entry)
+                                        }
+                                    }
+                            }
+                            .onDelete(perform: deleteItems)
                         }
                     }
+                    .navigationSplitViewColumnWidth(
+                        min: sidebarMinWidth(for: proxy.size.width),
+                        ideal: sidebarIdealWidth(for: proxy.size.width)
+                    )
+                    .searchable(text: $searchText, placement: .sidebar, prompt: "Cari history")
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .automatic) {
+                            Button {
+                                monitor.setMonitoring(!monitor.isMonitoring)
+                            } label: {
+                                Label(
+                                    monitor.isMonitoring ? "Pause Monitor" : "Resume Monitor",
+                                    systemImage: monitor.isMonitoring ? "pause.circle" : "play.circle"
+                                )
+                            }
+
+                            Button(role: .destructive, action: clearUnpinned) {
+                                Label("Clear Unpinned", systemImage: "trash")
+                            }
+                            .disabled(store.entries.isEmpty)
+
+                            Button(role: .destructive, action: clearAll) {
+                                Label("Clear All", systemImage: "trash.fill")
+                            }
+                            .disabled(store.entries.isEmpty)
+
+                            Button("Shortcut", systemImage: "keyboard") {
+                                isShowingShortcutSettings = true
+                            }
+
+                            Button("Screenshot", systemImage: "camera.viewfinder") {
+                                lifecycle.captureScreenshotToClipboard()
+                            }
+
+                            Button("Open Window", systemImage: "rectangle.inset.filled.and.person.filled") {
+                                NSApp.sendAction(#selector(AppDelegate.openHistoryWindow), to: nil, from: nil)
+                            }
+
+                            Button("Quit", systemImage: "power") {
+                                NSApplication.shared.terminate(nil)
+                            }
+                        }
+                    }
+                } detail: {
+                    ClipboardDetailView(
+                        entry: selectedEntry,
+                        onCopy: copyEntry,
+                        onDelete: deleteEntry,
+                        onTogglePin: { store.togglePin(for: $0.id) }
+                    )
                 }
-            } detail: {
-                ClipboardDetailView(
-                    entry: selectedEntry,
-                    onCopy: copyEntry,
-                    onDelete: deleteEntry,
-                    onTogglePin: { store.togglePin(for: $0.id) }
-                )
+                .background(Color.clear)
             }
-            .background(Color.clear)
         }
         .background(Color.clear)
         .onChange(of: selectedID) { _, newValue in
@@ -203,6 +208,15 @@ struct ContentView: View {
     private func clearAll() {
         store.clearAll()
         selectedID = nil
+    }
+
+    private func sidebarMinWidth(for totalWidth: CGFloat) -> CGFloat {
+        min(max(340, totalWidth * 0.28), 520)
+    }
+
+    private func sidebarIdealWidth(for totalWidth: CGFloat) -> CGFloat {
+        let minWidth = sidebarMinWidth(for: totalWidth)
+        return min(max(minWidth + 56, totalWidth * 0.34), 680)
     }
 }
 

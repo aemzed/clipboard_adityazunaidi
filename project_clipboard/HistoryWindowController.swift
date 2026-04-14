@@ -61,7 +61,8 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Clipboard History"
-        window.setContentSize(NSSize(width: 920, height: 560))
+        window.setContentSize(preferredWindowSize())
+        window.minSize = NSSize(width: 860, height: 520)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
@@ -76,5 +77,19 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
         hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
         self.window = window
         return window
+    }
+
+    private func preferredWindowSize() -> NSSize {
+        guard let visibleFrame = NSScreen.main?.visibleFrame else {
+            return NSSize(width: 1120, height: 680)
+        }
+
+        let preferredWidth = min(max(980, visibleFrame.width * 0.58), visibleFrame.width * 0.9)
+        let preferredHeight = min(max(560, visibleFrame.height * 0.62), visibleFrame.height * 0.9)
+
+        return NSSize(
+            width: preferredWidth.rounded(.toNearestOrAwayFromZero),
+            height: preferredHeight.rounded(.toNearestOrAwayFromZero)
+        )
     }
 }
