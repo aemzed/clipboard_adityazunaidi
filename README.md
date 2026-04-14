@@ -93,13 +93,3 @@ xcrun notarytool submit dist/project_clipboard-macos.dmg \
 xcrun stapler staple dist/project_clipboard-macos.dmg
 xcrun stapler validate dist/project_clipboard-macos.dmg
 ```
-
-## Push README ke GitHub
-
-```bash
-git add README.md
-git commit -m "docs: add dmg build and deploy guide"
-git push origin main
-```
-
-Jika branch aktif bukan `main`, sesuaikan target branch pada perintah `git push`.
