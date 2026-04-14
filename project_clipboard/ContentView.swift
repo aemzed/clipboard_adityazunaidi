@@ -34,89 +34,98 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selectedID) {
-                if filteredEntries.isEmpty {
-                    ContentUnavailableView(
-                        searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil",
-                        systemImage: "doc.text.magnifyingglass",
-                        description: Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
-                    )
-                } else {
-                    ForEach(filteredEntries) { entry in
-                        ClipboardRow(entry: entry)
-                            .tag(entry.id)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                if selectedID == entry.id {
-                                    copyEntry(entry)
-                                } else {
-                                    selectedID = entry.id
-                                }
-                            }
-                            .contextMenu {
-                                Button("Copy Ulang", systemImage: "doc.on.doc") {
-                                    copyEntry(entry)
-                                }
+        ZStack {
+            TranslucentBackgroundView(material: .underWindowBackground)
+                .ignoresSafeArea()
 
-                                Button(entry.isPinned ? "Lepas Pin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
-                                    store.togglePin(for: entry.id)
-                                }
-
-                                Divider()
-
-                                Button("Hapus", systemImage: "trash", role: .destructive) {
-                                    deleteEntry(entry)
-                                }
-                            }
-                    }
-                    .onDelete(perform: deleteItems)
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 260, ideal: 360)
-            .searchable(text: $searchText, placement: .sidebar, prompt: "Cari history")
-            .toolbar {
-                ToolbarItemGroup(placement: .automatic) {
-                    Button {
-                        monitor.setMonitoring(!monitor.isMonitoring)
-                    } label: {
-                        Label(
-                            monitor.isMonitoring ? "Pause Monitor" : "Resume Monitor",
-                            systemImage: monitor.isMonitoring ? "pause.circle" : "play.circle"
+            NavigationSplitView {
+                List(selection: $selectedID) {
+                    if filteredEntries.isEmpty {
+                        ContentUnavailableView(
+                            searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil",
+                            systemImage: "doc.text.magnifyingglass",
+                            description: Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
                         )
-                    }
+                    } else {
+                        ForEach(filteredEntries) { entry in
+                            ClipboardRow(entry: entry)
+                                .tag(entry.id)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if selectedID == entry.id {
+                                        copyEntry(entry)
+                                    } else {
+                                        selectedID = entry.id
+                                    }
+                                }
+                                .contextMenu {
+                                    Button("Copy Ulang", systemImage: "doc.on.doc") {
+                                        copyEntry(entry)
+                                    }
 
-                    Button(role: .destructive, action: clearUnpinned) {
-                        Label("Clear Unpinned", systemImage: "trash")
-                    }
-                    .disabled(store.entries.isEmpty)
+                                    Button(entry.isPinned ? "Lepas Pin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
+                                        store.togglePin(for: entry.id)
+                                    }
 
-                    Button(role: .destructive, action: clearAll) {
-                        Label("Clear All", systemImage: "trash.fill")
-                    }
-                    .disabled(store.entries.isEmpty)
+                                    Divider()
 
-                    Button("Shortcut", systemImage: "keyboard") {
-                        isShowingShortcutSettings = true
-                    }
-
-                    Button("Open Window", systemImage: "rectangle.inset.filled.and.person.filled") {
-                        NSApp.sendAction(#selector(AppDelegate.openHistoryWindow), to: nil, from: nil)
-                    }
-
-                    Button("Quit", systemImage: "power") {
-                        NSApplication.shared.terminate(nil)
+                                    Button("Hapus", systemImage: "trash", role: .destructive) {
+                                        deleteEntry(entry)
+                                    }
+                                }
+                        }
+                        .onDelete(perform: deleteItems)
                     }
                 }
+                .navigationSplitViewColumnWidth(min: 260, ideal: 360)
+                .searchable(text: $searchText, placement: .sidebar, prompt: "Cari history")
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .toolbar {
+                    ToolbarItemGroup(placement: .automatic) {
+                        Button {
+                            monitor.setMonitoring(!monitor.isMonitoring)
+                        } label: {
+                            Label(
+                                monitor.isMonitoring ? "Pause Monitor" : "Resume Monitor",
+                                systemImage: monitor.isMonitoring ? "pause.circle" : "play.circle"
+                            )
+                        }
+
+                        Button(role: .destructive, action: clearUnpinned) {
+                            Label("Clear Unpinned", systemImage: "trash")
+                        }
+                        .disabled(store.entries.isEmpty)
+
+                        Button(role: .destructive, action: clearAll) {
+                            Label("Clear All", systemImage: "trash.fill")
+                        }
+                        .disabled(store.entries.isEmpty)
+
+                        Button("Shortcut", systemImage: "keyboard") {
+                            isShowingShortcutSettings = true
+                        }
+
+                        Button("Open Window", systemImage: "rectangle.inset.filled.and.person.filled") {
+                            NSApp.sendAction(#selector(AppDelegate.openHistoryWindow), to: nil, from: nil)
+                        }
+
+                        Button("Quit", systemImage: "power") {
+                            NSApplication.shared.terminate(nil)
+                        }
+                    }
+                }
+            } detail: {
+                ClipboardDetailView(
+                    entry: selectedEntry,
+                    onCopy: copyEntry,
+                    onDelete: deleteEntry,
+                    onTogglePin: { store.togglePin(for: $0.id) }
+                )
             }
-        } detail: {
-            ClipboardDetailView(
-                entry: selectedEntry,
-                onCopy: copyEntry,
-                onDelete: deleteEntry,
-                onTogglePin: { store.togglePin(for: $0.id) }
-            )
+            .background(Color.clear)
         }
+        .background(Color.clear)
         .onChange(of: selectedID) { _, newValue in
             guard let entry = store.entry(for: newValue) else { return }
             copyEntry(entry)
@@ -180,6 +189,24 @@ struct ContentView: View {
     private func clearAll() {
         store.clearAll()
         selectedID = nil
+    }
+}
+
+private struct TranslucentBackgroundView: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.state = .active
+        view.material = material
+        view.blendingMode = .withinWindow
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.state = .active
+        nsView.blendingMode = .withinWindow
     }
 }
 
