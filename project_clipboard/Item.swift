@@ -51,5 +51,6 @@ struct ClipboardEntry: Identifiable, Codable, Hashable {
     var contentType: ClipboardContentType
     var preview: String
     var value: String
+    var binaryData: Data?
     var isPinned: Bool = false
 }

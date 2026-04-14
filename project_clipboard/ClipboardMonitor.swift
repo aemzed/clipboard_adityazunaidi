@@ -7,6 +7,7 @@
 
 import AppKit
 import Combine
+import CryptoKit
 import Foundation
 
 struct ClipboardPayload {
@@ -14,6 +15,7 @@ struct ClipboardPayload {
     let value: String
     let preview: String
     let capturedAt: Date
+    let binaryData: Data?
 }
 
 final class ClipboardMonitor: ObservableObject {
@@ -92,7 +94,8 @@ final class ClipboardMonitor: ObservableObject {
                     type: .file,
                     value: fileURLs.map(\.path).joined(separator: "\n"),
                     preview: truncate(preview),
-                    capturedAt: captureDate
+                    capturedAt: captureDate,
+                    binaryData: nil
                 )
             }
 
@@ -101,7 +104,8 @@ final class ClipboardMonitor: ObservableObject {
                 type: .url,
                 value: rawURL,
                 preview: truncate(urls.first?.absoluteString ?? rawURL),
-                capturedAt: captureDate
+                capturedAt: captureDate,
+                binaryData: nil
             )
         }
 
@@ -113,21 +117,49 @@ final class ClipboardMonitor: ObservableObject {
                 type: type,
                 value: text,
                 preview: truncate(cleaned),
-                capturedAt: captureDate
+                capturedAt: captureDate,
+                binaryData: nil
             )
         }
 
-        if let imageData = pasteboard.data(forType: .tiff) ?? pasteboard.data(forType: .png) {
+        if let imageData = readImageData() {
             let size = ByteCountFormatter.string(
                 fromByteCount: Int64(imageData.count),
                 countStyle: .file
             )
+            let imageHash = SHA256.hash(data: imageData)
+                .map { String(format: "%02x", $0) }
+                .joined()
             return ClipboardPayload(
                 type: .image,
-                value: "Image data (\(size))",
+                value: imageHash,
                 preview: "Image (\(size))",
-                capturedAt: captureDate
+                capturedAt: captureDate,
+                binaryData: imageData
             )
+        }
+
+        return nil
+    }
+
+    private func readImageData() -> Data? {
+        if let pngData = pasteboard.data(forType: .png), !pngData.isEmpty {
+            return pngData
+        }
+
+        if let tiffData = pasteboard.data(forType: .tiff),
+           let bitmap = NSBitmapImageRep(data: tiffData),
+           let pngData = bitmap.representation(using: .png, properties: [:]),
+           !pngData.isEmpty {
+            return pngData
+        }
+
+        if let image = NSImage(pasteboard: pasteboard),
+           let tiffData = image.tiffRepresentation,
+           let bitmap = NSBitmapImageRep(data: tiffData),
+           let pngData = bitmap.representation(using: .png, properties: [:]),
+           !pngData.isEmpty {
+            return pngData
         }
 
         return nil

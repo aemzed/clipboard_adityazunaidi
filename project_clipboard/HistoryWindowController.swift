@@ -20,17 +20,31 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
     }
 
     func toggle() {
-        if let window, window.isVisible {
+        let window = getOrCreateWindow()
+
+        if shouldHide(window) {
             window.orderOut(nil)
             return
         }
-        show()
+
+        show(window)
     }
 
     func show() {
         let window = getOrCreateWindow()
+        show(window)
+    }
+
+    private func show(_ window: NSWindow) {
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    private func shouldHide(_ window: NSWindow) -> Bool {
+        window.isVisible
+            && window.isOnActiveSpace
+            && window.isKeyWindow
+            && NSApp.isActive
     }
 
     private func getOrCreateWindow() -> NSWindow {
@@ -50,6 +64,7 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.isMovableByWindowBackground = true
+        window.collectionBehavior = [.moveToActiveSpace]
         window.isReleasedWhenClosed = false
         window.center()
         window.delegate = self

@@ -154,6 +154,16 @@ struct ContentView: View {
             }
 
             pasteboard.setString(entry.value, forType: .string)
+        case .image:
+            if let data = entry.binaryData,
+               let image = NSImage(data: data) {
+                if pasteboard.writeObjects([image]) {
+                    return
+                }
+                pasteboard.setData(data, forType: .png)
+                return
+            }
+            pasteboard.setString(entry.preview, forType: .string)
         default:
             pasteboard.setString(entry.value, forType: .string)
         }
@@ -368,9 +378,13 @@ private struct ClipboardDetailView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Text(entry.value)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if entry.contentType == .image {
+                            imageContent(for: entry)
+                        } else {
+                            Text(entry.value)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
 
                         HStack(spacing: 12) {
                             Button("Copy Ulang", systemImage: "doc.on.doc") {
@@ -395,6 +409,26 @@ private struct ClipboardDetailView: View {
                     description: Text("Detail clipboard akan tampil di sini.")
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private func imageContent(for entry: ClipboardEntry) -> some View {
+        if let data = entry.binaryData,
+           let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: 320)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            Text("Ukuran image: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Data image lama tidak tersedia. Copy image baru untuk menyimpan data image ke history.")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

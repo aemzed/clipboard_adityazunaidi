@@ -34,6 +34,7 @@ final class ClipboardStore: ObservableObject {
             var existing = entries.remove(at: existingIndex)
             existing.capturedAt = payload.capturedAt
             existing.preview = payload.preview
+            existing.binaryData = payload.binaryData
             entries.insert(existing, at: 0)
             entries.sort(by: sortRule)
             persist()
@@ -44,7 +45,8 @@ final class ClipboardStore: ObservableObject {
             capturedAt: payload.capturedAt,
             contentType: payload.type,
             preview: payload.preview,
-            value: payload.value
+            value: payload.value,
+            binaryData: payload.binaryData
         )
         entries.insert(entry, at: 0)
         trimHistoryIfNeeded()
