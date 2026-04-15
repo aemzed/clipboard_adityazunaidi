@@ -190,18 +190,46 @@ final class AppLifecycle: ObservableObject {
     func presentShortcutEditor() {
         NSApp.activate(ignoringOtherApps: true)
 
-        let editorView = ShortcutEditorAccessoryView(shortcut: preferredShortcut)
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = "Edit Global Shortcut"
-        alert.informativeText = "Set keyboard shortcut to open Clipboard History."
-        alert.accessoryView = editorView
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
+        let model = ShortcutEditorModel(shortcut: preferredShortcut)
+        let content = ShortcutEditorModalContent(model: model)
+        let hostingController = NSHostingController(rootView: content)
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let panel = NSPanel(
+            contentRect: .zero,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.contentViewController = hostingController
+        panel.title = "Edit Global Shortcut"
+        panel.setContentSize(NSSize(width: 340, height: 320))
+        panel.center()
+        panel.isReleasedWhenClosed = false
 
-        let candidate = editorView.shortcutValue
+        model.onCancel = {
+            NSApp.stopModal(withCode: .cancel)
+            panel.orderOut(nil)
+        }
+        model.onSave = {
+            NSApp.stopModal(withCode: .OK)
+            panel.orderOut(nil)
+        }
+
+        let closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: panel,
+            queue: .main
+        ) { _ in
+            NSApp.stopModal(withCode: .cancel)
+        }
+
+        let response = NSApp.runModal(for: panel)
+        NotificationCenter.default.removeObserver(closeObserver)
+        panel.orderOut(nil)
+
+        guard response == .OK else { return }
+
+        let candidate = model.shortcutValue
         guard candidate.modifiers != 0 else {
             showInfoAlert(
                 title: "Shortcut is invalid",
@@ -269,93 +297,82 @@ final class AppLifecycle: ObservableObject {
     }
 }
 
-private final class ShortcutEditorAccessoryView: NSView {
-    private let keyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let commandCheckbox = NSButton(checkboxWithTitle: "Command", target: nil, action: nil)
-    private let shiftCheckbox = NSButton(checkboxWithTitle: "Shift", target: nil, action: nil)
-    private let optionCheckbox = NSButton(checkboxWithTitle: "Option", target: nil, action: nil)
-    private let controlCheckbox = NSButton(checkboxWithTitle: "Control", target: nil, action: nil)
+private final class ShortcutEditorModel: ObservableObject {
+    @Published var selectedKeyCode: UInt32
+    @Published var useCommand: Bool
+    @Published var useShift: Bool
+    @Published var useOption: Bool
+    @Published var useControl: Bool
+
+    var onSave: (() -> Void)?
+    var onCancel: (() -> Void)?
 
     init(shortcut: HotKeyShortcut) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-
-        let keyLabel = NSTextField(labelWithString: "Key:")
-        keyLabel.font = .systemFont(ofSize: 12, weight: .medium)
-
-        keyPopup.translatesAutoresizingMaskIntoConstraints = false
-        keyPopup.font = .systemFont(ofSize: 12)
-        keyPopup.addItems(withTitles: ShortcutCatalog.keyOptions.map(\.label))
-
-        if let selectedIndex = ShortcutCatalog.keyOptions.firstIndex(where: { $0.keyCode == shortcut.keyCode }) {
-            keyPopup.selectItem(at: selectedIndex)
-        } else {
-            keyPopup.selectItem(at: 0)
-        }
-
-        commandCheckbox.state = (shortcut.modifiers & UInt32(cmdKey)) != 0 ? .on : .off
-        shiftCheckbox.state = (shortcut.modifiers & UInt32(shiftKey)) != 0 ? .on : .off
-        optionCheckbox.state = (shortcut.modifiers & UInt32(optionKey)) != 0 ? .on : .off
-        controlCheckbox.state = (shortcut.modifiers & UInt32(controlKey)) != 0 ? .on : .off
-
-        [commandCheckbox, shiftCheckbox, optionCheckbox, controlCheckbox].forEach {
-            $0.font = .systemFont(ofSize: 12)
-        }
-
-        let keyRow = NSStackView(views: [keyLabel, keyPopup])
-        keyRow.orientation = .horizontal
-        keyRow.spacing = 8
-        keyRow.alignment = .centerY
-
-        let modifierLabel = NSTextField(labelWithString: "Modifiers:")
-        modifierLabel.font = .systemFont(ofSize: 12, weight: .medium)
-
-        let modifierRow1 = NSStackView(views: [commandCheckbox, shiftCheckbox])
-        modifierRow1.orientation = .horizontal
-        modifierRow1.spacing = 16
-        modifierRow1.alignment = .centerY
-
-        let modifierRow2 = NSStackView(views: [optionCheckbox, controlCheckbox])
-        modifierRow2.orientation = .horizontal
-        modifierRow2.spacing = 16
-        modifierRow2.alignment = .centerY
-
-        let modifierSection = NSStackView(views: [modifierLabel, modifierRow1, modifierRow2])
-        modifierSection.orientation = .vertical
-        modifierSection.spacing = 6
-        modifierSection.alignment = .leading
-
-        let root = NSStackView(views: [keyRow, modifierSection])
-        root.orientation = .vertical
-        root.spacing = 14
-        root.translatesAutoresizingMaskIntoConstraints = false
-
-        addSubview(root)
-
-        NSLayoutConstraint.activate([
-            root.topAnchor.constraint(equalTo: topAnchor),
-            root.leadingAnchor.constraint(equalTo: leadingAnchor),
-            root.trailingAnchor.constraint(equalTo: trailingAnchor),
-            root.bottomAnchor.constraint(equalTo: bottomAnchor),
-            keyPopup.widthAnchor.constraint(equalToConstant: 80),
-            widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
-        ])
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        self.selectedKeyCode = shortcut.keyCode
+        self.useCommand = (shortcut.modifiers & UInt32(cmdKey)) != 0
+        self.useShift = (shortcut.modifiers & UInt32(shiftKey)) != 0
+        self.useOption = (shortcut.modifiers & UInt32(optionKey)) != 0
+        self.useControl = (shortcut.modifiers & UInt32(controlKey)) != 0
     }
 
     var shortcutValue: HotKeyShortcut {
-        let selectedIndex = max(0, keyPopup.indexOfSelectedItem)
-        let keyCode = ShortcutCatalog.keyOptions[selectedIndex].keyCode
-
         var modifiers: UInt32 = 0
-        if commandCheckbox.state == .on { modifiers |= UInt32(cmdKey) }
-        if shiftCheckbox.state == .on { modifiers |= UInt32(shiftKey) }
-        if optionCheckbox.state == .on { modifiers |= UInt32(optionKey) }
-        if controlCheckbox.state == .on { modifiers |= UInt32(controlKey) }
+        if useCommand { modifiers |= UInt32(cmdKey) }
+        if useShift { modifiers |= UInt32(shiftKey) }
+        if useOption { modifiers |= UInt32(optionKey) }
+        if useControl { modifiers |= UInt32(controlKey) }
+        return HotKeyShortcut(keyCode: selectedKeyCode, modifiers: modifiers)
+    }
+}
 
-        return HotKeyShortcut(keyCode: keyCode, modifiers: modifiers)
+private struct ShortcutEditorModalContent: View {
+    @ObservedObject var model: ShortcutEditorModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Set keyboard shortcut to open Clipboard History.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("Key:")
+                    .font(.body.weight(.medium))
+                Picker("", selection: $model.selectedKeyCode) {
+                    ForEach(ShortcutCatalog.keyOptions) { option in
+                        Text(option.label).tag(option.keyCode)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 100)
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Modifiers:")
+                    .font(.body.weight(.medium))
+
+                Toggle("Command (⌘)", isOn: $model.useCommand)
+                Toggle("Shift (⇧)", isOn: $model.useShift)
+                Toggle("Option (⌥)", isOn: $model.useOption)
+                Toggle("Control (⌃)", isOn: $model.useControl)
+            }
+
+            Spacer()
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    model.onCancel?()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Save") {
+                    model.onSave?()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 320, height: 300)
     }
 }

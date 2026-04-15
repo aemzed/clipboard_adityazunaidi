@@ -8,9 +8,30 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    static let spotlightMoveUp = Notification.Name("spotlightMoveUp")
+    static let spotlightMoveDown = Notification.Name("spotlightMoveDown")
+}
+
 private final class SpotlightPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown {
+            switch event.keyCode {
+            case 125: // Down arrow
+                NotificationCenter.default.post(name: .spotlightMoveDown, object: nil)
+                return
+            case 126: // Up arrow
+                NotificationCenter.default.post(name: .spotlightMoveUp, object: nil)
+                return
+            default:
+                break
+            }
+        }
+        super.sendEvent(event)
+    }
 }
 
 @MainActor

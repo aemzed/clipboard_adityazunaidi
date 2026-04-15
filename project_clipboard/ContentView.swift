@@ -64,12 +64,11 @@ struct ContentView: View {
         .onChange(of: store.entries) { _, _ in
             ensureSelection()
         }
-        .onMoveCommand(perform: moveSelection)
-        .onCommand(#selector(NSResponder.insertNewline(_:))) {
-            copySelectedEntryAndDismiss()
+        .onReceive(NotificationCenter.default.publisher(for: .spotlightMoveUp)) { _ in
+            moveSelection(.up)
         }
-        .onCommand(#selector(NSResponder.insertLineBreak(_:))) {
-            copySelectedEntryAndDismiss()
+        .onReceive(NotificationCenter.default.publisher(for: .spotlightMoveDown)) { _ in
+            moveSelection(.down)
         }
     }
 
