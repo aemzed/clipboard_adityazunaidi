@@ -2,11 +2,10 @@
 //  ContentView.swift
 //  project_clipboard
 //
-//  Created by Adit's Macbook    on 14/04/26.
+//  Created by Adit's Macbook on 14/04/26.
 //
 
 import AppKit
-import Carbon.HIToolbox
 import SwiftUI
 
 struct ContentView: View {
@@ -16,141 +15,268 @@ struct ContentView: View {
 
     @State private var searchText: String = ""
     @State private var selectedID: UUID?
-    @State private var isShowingShortcutSettings = false
+    @State private var copiedEntryID: UUID?
+    @State private var clearCopiedIndicatorTask: DispatchWorkItem?
+
+    @FocusState private var isSearchFocused: Bool
 
     private var filteredEntries: [ClipboardEntry] {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
             return store.entries
         }
 
-        return store.entries.filter {
-            $0.preview.localizedCaseInsensitiveContains(searchText)
-                || $0.value.localizedCaseInsensitiveContains(searchText)
+        return store.entries.filter { entry in
+            entry.preview.localizedCaseInsensitiveContains(query)
+                || entry.value.localizedCaseInsensitiveContains(query)
+                || entry.contentType.searchAliases.contains(where: {
+                    $0.localizedCaseInsensitiveContains(query)
+                })
+                || entry.contentType.displayName.localizedCaseInsensitiveContains(query)
         }
     }
 
+    private var displayEntries: [ClipboardEntry] {
+        Array(filteredEntries.prefix(20))
+    }
+
     private var selectedEntry: ClipboardEntry? {
-        store.entry(for: selectedID)
+        displayEntries.first(where: { $0.id == selectedID })
     }
 
     var body: some View {
         ZStack {
-            TranslucentBackgroundView(material: .underWindowBackground)
+            TranslucentBackgroundView(material: .hudWindow)
                 .ignoresSafeArea()
 
-            GeometryReader { proxy in
-                NavigationSplitView {
-                    List(selection: $selectedID) {
-                        if filteredEntries.isEmpty {
-                            ContentUnavailableView {
-                                Label {
-                                    Text(searchText.isEmpty ? "Clipboard kosong" : "Tidak ada hasil")
-                                        .font(.title3.weight(.semibold))
-                                } icon: {
-                                    Image(systemName: "doc.text.magnifyingglass")
-                                }
-                            } description: {
-                                Text(searchText.isEmpty ? "Copy sesuatu dulu, nanti akan muncul di sini." : "Coba kata kunci lain.")
-                                    .font(.body)
-                            }
-                        } else {
-                            ForEach(filteredEntries) { entry in
-                                ClipboardRow(entry: entry)
-                                    .tag(entry.id)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        if selectedID == entry.id {
-                                            copyEntry(entry)
-                                        } else {
-                                            selectedID = entry.id
-                                        }
-                                    }
-                                    .contextMenu {
-                                        Button("Copy Ulang", systemImage: "doc.on.doc") {
-                                            copyEntry(entry)
-                                        }
-
-                                        Button(entry.isPinned ? "Lepas Pin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
-                                            store.togglePin(for: entry.id)
-                                        }
-
-                                        Divider()
-
-                                        Button("Hapus", systemImage: "trash", role: .destructive) {
-                                            deleteEntry(entry)
-                                        }
-                                    }
-                            }
-                            .onDelete(perform: deleteItems)
-                        }
-                    }
-                    .navigationSplitViewColumnWidth(
-                        min: sidebarMinWidth(for: proxy.size.width),
-                        ideal: sidebarIdealWidth(for: proxy.size.width)
-                    )
-                    .searchable(text: $searchText, placement: .sidebar, prompt: "Cari history")
-                    .scrollContentBackground(.hidden)
-                    .background(Color.clear)
-                    .toolbar {
-                        ToolbarItemGroup(placement: .automatic) {
-                            Button {
-                                monitor.setMonitoring(!monitor.isMonitoring)
-                            } label: {
-                                Label(
-                                    monitor.isMonitoring ? "Pause Monitor" : "Resume Monitor",
-                                    systemImage: monitor.isMonitoring ? "pause.circle" : "play.circle"
-                                )
-                            }
-
-                            Button(role: .destructive, action: clearUnpinned) {
-                                Label("Clear Unpinned", systemImage: "trash")
-                            }
-                            .disabled(store.entries.isEmpty)
-
-                            Button(role: .destructive, action: clearAll) {
-                                Label("Clear All", systemImage: "trash.fill")
-                            }
-                            .disabled(store.entries.isEmpty)
-
-                            Button("Shortcut", systemImage: "keyboard") {
-                                isShowingShortcutSettings = true
-                            }
-
-                            Button("Screenshot", systemImage: "camera.viewfinder") {
-                                lifecycle.captureScreenshotToClipboard()
-                            }
-
-                            Button("Open Window", systemImage: "rectangle.inset.filled.and.person.filled") {
-                                NSApp.sendAction(#selector(AppDelegate.openHistoryWindow), to: nil, from: nil)
-                            }
-
-                            Button("Quit", systemImage: "power") {
-                                NSApplication.shared.terminate(nil)
-                            }
-                        }
-                    }
-                } detail: {
-                    ClipboardDetailView(
-                        entry: selectedEntry,
-                        onCopy: copyEntry,
-                        onDelete: deleteEntry,
-                        onTogglePin: { store.togglePin(for: $0.id) }
-                    )
-                }
-                .background(Color.clear)
+            VStack(spacing: 14) {
+                searchBar
+                quickActionsBar
+                resultPanel
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 18)
         }
         .background(Color.clear)
-        .onChange(of: selectedID) { _, newValue in
-            guard let entry = store.entry(for: newValue) else { return }
-            copyEntry(entry)
+        .onAppear {
+            ensureSelection()
+            DispatchQueue.main.async {
+                isSearchFocused = true
+            }
         }
-        .sheet(isPresented: $isShowingShortcutSettings) {
-            ShortcutSettingsSheet(
-                isPresented: $isShowingShortcutSettings,
-                lifecycle: lifecycle
-            )
+        .onChange(of: searchText) { _, _ in
+            ensureSelection()
         }
+        .onChange(of: store.entries) { _, _ in
+            ensureSelection()
+        }
+        .onMoveCommand(perform: moveSelection)
+        .onCommand(#selector(NSResponder.insertNewline(_:))) {
+            copySelectedEntryAndDismiss()
+        }
+        .onCommand(#selector(NSResponder.insertLineBreak(_:))) {
+            copySelectedEntryAndDismiss()
+        }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.88))
+
+            TextField("Cari Riwayat Papan Klip...", text: $searchText)
+                .textFieldStyle(.plain)
+                .focused($isSearchFocused)
+                .font(.system(size: 26, weight: .medium, design: .rounded))
+                .foregroundStyle(.white)
+                .onSubmit {
+                    copySelectedEntryAndDismiss()
+                }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.20))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.30), lineWidth: 1)
+        )
+    }
+
+    private var resultPanel: some View {
+        Group {
+            if displayEntries.isEmpty {
+                emptyState
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(spacing: 10) {
+                            ForEach(displayEntries) { entry in
+                                SpotlightClipboardRow(
+                                    entry: entry,
+                                    isSelected: selectedID == entry.id,
+                                    isCopied: copiedEntryID == entry.id,
+                                    onSelect: {
+                                        selectedID = entry.id
+                                    },
+                                    onCopy: {
+                                        copyEntryAndDismiss(entry)
+                                    }
+                                )
+                                .id(entry.id)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.trailing, 10)
+                    }
+                    .frame(maxHeight: 380)
+                    .overlay(alignment: .trailing) {
+                        if displayEntries.count > 1 {
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.26))
+                                .frame(width: 2.5, height: 84)
+                                .padding(.trailing, 2)
+                        }
+                    }
+                    .onChange(of: selectedID) { _, newValue in
+                        guard let newValue else { return }
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            proxy.scrollTo(newValue, anchor: .center)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private var quickActionsBar: some View {
+        HStack(spacing: 8) {
+            Text("Shortcut: \(lifecycle.activeShortcutDisplay)")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.82))
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Button {
+                lifecycle.presentShortcutEditor()
+            } label: {
+                Label("Edit Shortcut", systemImage: "keyboard")
+                    .font(.caption.weight(.semibold))
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.white.opacity(0.18))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+
+            Button(role: .destructive) {
+                lifecycle.confirmAndClearAllHistory()
+            } label: {
+                Label("Clear All", systemImage: "trash")
+                    .font(.caption.weight(.semibold))
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.red.opacity(0.30))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(store.entries.isEmpty)
+            .opacity(store.entries.isEmpty ? 0.55 : 1.0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "list.clipboard")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.82))
+
+            Text(searchText.isEmpty ? "Riwayat papan klip kosong" : "Tidak ada hasil")
+                .font(.headline)
+                .foregroundStyle(.white)
+
+            Text(searchText.isEmpty ? "Salin sesuatu, lalu item akan muncul di sini." : "Coba kata kunci lain.")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.78))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+    }
+
+    private func moveSelection(_ direction: MoveCommandDirection) {
+        guard !displayEntries.isEmpty else { return }
+
+        guard let selectedID,
+              let currentIndex = displayEntries.firstIndex(where: { $0.id == selectedID }) else {
+            self.selectedID = displayEntries.first?.id
+            return
+        }
+
+        switch direction {
+        case .up:
+            let nextIndex = max(0, currentIndex - 1)
+            self.selectedID = displayEntries[nextIndex].id
+        case .down:
+            let nextIndex = min(displayEntries.count - 1, currentIndex + 1)
+            self.selectedID = displayEntries[nextIndex].id
+        default:
+            break
+        }
+    }
+
+    private func ensureSelection() {
+        if let selectedID,
+           displayEntries.contains(where: { $0.id == selectedID }) {
+            return
+        }
+        self.selectedID = displayEntries.first?.id
+    }
+
+    private func copySelectedEntryAndDismiss() {
+        guard let entry = selectedEntry else { return }
+        copyEntryAndDismiss(entry)
+    }
+
+    private func copyEntryAndDismiss(_ entry: ClipboardEntry) {
+        copyEntry(entry)
+        showCopiedIndicator(for: entry.id)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            lifecycle.dismissHistoryWindowAfterCopy()
+        }
+    }
+
+    private func showCopiedIndicator(for id: UUID) {
+        copiedEntryID = id
+        clearCopiedIndicatorTask?.cancel()
+
+        let clearTask = DispatchWorkItem {
+            copiedEntryID = nil
+        }
+        clearCopiedIndicatorTask = clearTask
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9, execute: clearTask)
     }
 
     private func copyEntry(_ entry: ClipboardEntry) {
@@ -169,6 +295,7 @@ struct ContentView: View {
             }
 
             pasteboard.setString(entry.value, forType: .string)
+
         case .image:
             if let data = entry.binaryData,
                let image = NSImage(data: data) {
@@ -179,50 +306,19 @@ struct ContentView: View {
                 return
             }
             pasteboard.setString(entry.preview, forType: .string)
+
+        case .richText:
+            if let rtfData = entry.binaryData {
+                pasteboard.declareTypes([.rtf, .string], owner: nil)
+                pasteboard.setData(rtfData, forType: .rtf)
+                pasteboard.setString(entry.value, forType: .string)
+                return
+            }
+            pasteboard.setString(entry.value, forType: .string)
+
         default:
             pasteboard.setString(entry.value, forType: .string)
         }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        let targetIDs = offsets.map { filteredEntries[$0].id }
-        store.delete(ids: targetIDs)
-
-        if let selectedID,
-            store.entry(for: selectedID) == nil
-        {
-            self.selectedID = nil
-        }
-    }
-
-    private func deleteEntry(_ entry: ClipboardEntry) {
-        store.delete(id: entry.id)
-        if selectedID == entry.id {
-            selectedID = nil
-        }
-    }
-
-    private func clearUnpinned() {
-        let selectedWasPinned = selectedEntry?.isPinned ?? false
-        store.clearUnpinned()
-
-        if !selectedWasPinned {
-            selectedID = nil
-        }
-    }
-
-    private func clearAll() {
-        store.clearAll()
-        selectedID = nil
-    }
-
-    private func sidebarMinWidth(for totalWidth: CGFloat) -> CGFloat {
-        min(max(340, totalWidth * 0.28), 520)
-    }
-
-    private func sidebarIdealWidth(for totalWidth: CGFloat) -> CGFloat {
-        let minWidth = sidebarMinWidth(for: totalWidth)
-        return min(max(minWidth + 56, totalWidth * 0.34), 680)
     }
 }
 
@@ -244,215 +340,105 @@ private struct TranslucentBackgroundView: NSViewRepresentable {
     }
 }
 
-private struct ShortcutSettingsSheet: View {
-    @Binding var isPresented: Bool
-    @ObservedObject var lifecycle: AppLifecycle
-
-    @State private var selectedKeyCode: UInt32
-    @State private var useCommand: Bool
-    @State private var useOption: Bool
-    @State private var useControl: Bool
-    @State private var useShift: Bool
-    @State private var localMessage: String = ""
-
-    init(isPresented: Binding<Bool>, lifecycle: AppLifecycle) {
-        self._isPresented = isPresented
-        self.lifecycle = lifecycle
-
-        let shortcut = lifecycle.preferredShortcut
-        _selectedKeyCode = State(initialValue: shortcut.keyCode)
-        _useCommand = State(initialValue: (shortcut.modifiers & UInt32(cmdKey)) != 0)
-        _useOption = State(initialValue: (shortcut.modifiers & UInt32(optionKey)) != 0)
-        _useControl = State(initialValue: (shortcut.modifiers & UInt32(controlKey)) != 0)
-        _useShift = State(initialValue: (shortcut.modifiers & UInt32(shiftKey)) != 0)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Aktif Saat Ini") {
-                    Text(lifecycle.activeShortcutDisplay)
-                        .font(.headline)
-                }
-
-                Section("Custom Shortcut") {
-                    Picker("Key", selection: $selectedKeyCode) {
-                        ForEach(ShortcutCatalog.keyOptions) { option in
-                            Text(option.label).tag(option.keyCode)
-                        }
-                    }
-
-                    Toggle("Command", isOn: $useCommand)
-                    Toggle("Option", isOn: $useOption)
-                    Toggle("Control", isOn: $useControl)
-                    Toggle("Shift", isOn: $useShift)
-
-                    if !localMessage.isEmpty {
-                        Text(localMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if !lifecycle.shortcutStatusMessage.isEmpty {
-                        Text(lifecycle.shortcutStatusMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .navigationTitle("Shortcut Settings")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Tutup") {
-                        isPresented = false
-                    }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Simpan") {
-                        saveShortcut()
-                    }
-                }
-            }
-        }
-        .frame(minWidth: 420, minHeight: 360)
-    }
-
-    private func saveShortcut() {
-        let modifiers = composeModifiers()
-        guard modifiers != 0 else {
-            localMessage = "Pilih minimal satu modifier (Command/Option/Control/Shift)."
-            return
-        }
-
-        let shortcut = HotKeyShortcut(
-            keyCode: selectedKeyCode,
-            modifiers: modifiers
-        )
-
-        let exact = lifecycle.updatePreferredShortcut(shortcut)
-        localMessage = lifecycle.shortcutStatusMessage
-
-        if exact {
-            isPresented = false
-        }
-    }
-
-    private func composeModifiers() -> UInt32 {
-        var modifiers: UInt32 = 0
-        if useCommand { modifiers |= UInt32(cmdKey) }
-        if useOption { modifiers |= UInt32(optionKey) }
-        if useControl { modifiers |= UInt32(controlKey) }
-        if useShift { modifiers |= UInt32(shiftKey) }
-        return modifiers
-    }
-}
-
-private struct ClipboardRow: View {
+private struct SpotlightClipboardRow: View {
     let entry: ClipboardEntry
+    let isSelected: Bool
+    let isCopied: Bool
+    let onSelect: () -> Void
+    let onCopy: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: entry.contentType.systemImageName)
-                .foregroundStyle(entry.isPinned ? .orange : .secondary)
-                .frame(width: 20)
+        HStack(spacing: 12) {
+            leadingVisual
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(entry.contentType.displayName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    if entry.isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                }
-
                 Text(entry.preview)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
+                    .font(.system(size: 21, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .foregroundStyle(.white)
 
-                Text(entry.capturedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(entry.contentType.displayName)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(entry.capturedAt.formatted(date: .omitted, time: .shortened))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.82))
+
+                Button {
+                    onCopy()
+                } label: {
+                    Label(isCopied ? "Copied" : "Copy", systemImage: isCopied ? "checkmark" : "doc.on.doc")
+                        .font(.caption.weight(.semibold))
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isCopied ? Color.green.opacity(0.70) : Color.white.opacity(0.20))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(Color.white.opacity(0.32), lineWidth: 1)
+                )
+                .foregroundStyle(.white)
             }
         }
-        .padding(.vertical, 4)
-    }
-}
-
-private struct ClipboardDetailView: View {
-    let entry: ClipboardEntry?
-    let onCopy: (ClipboardEntry) -> Void
-    let onDelete: (ClipboardEntry) -> Void
-    let onTogglePin: (ClipboardEntry) -> Void
-
-    var body: some View {
-        Group {
-            if let entry {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 10) {
-                            Image(systemName: entry.contentType.systemImageName)
-                            Text(entry.contentType.displayName)
-                                .font(.headline)
-                        }
-
-                        Text(entry.capturedAt.formatted(date: .long, time: .standard))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if entry.contentType == .image {
-                            imageContent(for: entry)
-                        } else {
-                            Text(entry.value)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        HStack(spacing: 12) {
-                            Button("Copy Ulang", systemImage: "doc.on.doc") {
-                                onCopy(entry)
-                            }
-
-                            Button(entry.isPinned ? "Lepas Pin" : "Pin", systemImage: entry.isPinned ? "pin.slash" : "pin") {
-                                onTogglePin(entry)
-                            }
-
-                            Button("Hapus", systemImage: "trash", role: .destructive) {
-                                onDelete(entry)
-                            }
-                        }
-                    }
-                    .padding()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.28) : Color.white.opacity(0.16))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(isSelected ? Color.white.opacity(0.52) : Color.white.opacity(0.24), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .highPriorityGesture(
+            TapGesture(count: 2)
+                .onEnded {
+                    onSelect()
+                    onCopy()
                 }
-            } else {
-                ContentUnavailableView(
-                    "Pilih item history",
-                    systemImage: "list.clipboard",
-                    description: Text("Detail clipboard akan tampil di sini.")
-                )
-            }
+        )
+        .onTapGesture {
+            onSelect()
         }
     }
 
     @ViewBuilder
-    private func imageContent(for entry: ClipboardEntry) -> some View {
-        if let data = entry.binaryData,
-           let image = NSImage(data: data) {
-            Image(nsImage: image)
+    private var leadingVisual: some View {
+        if entry.contentType == .image,
+           let thumbnailImage {
+            Image(nsImage: thumbnailImage)
                 .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity, maxHeight: 320)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            Text("Ukuran image: \(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .scaledToFill()
+                .frame(width: 34, height: 34)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                )
         } else {
-            Text("Data image lama tidak tersedia. Copy image baru untuk menyimpan data image ke history.")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: entry.contentType.systemImageName)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.white.opacity(0.20))
+                )
         }
+    }
+
+    private var thumbnailImage: NSImage? {
+        guard let data = entry.binaryData else { return nil }
+        return NSImage(data: data)
     }
 }

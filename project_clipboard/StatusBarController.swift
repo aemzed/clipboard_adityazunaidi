@@ -14,8 +14,10 @@ final class StatusBarController: NSObject {
     private let onCaptureScreenshot: () -> Void
     private let onClearUnpinned: () -> Void
     private let onClearAll: () -> Void
+    private let onEditShortcut: () -> Void
     private let onToggleMonitoring: () -> Void
     private let isMonitoringEnabled: () -> Bool
+    private let currentShortcutDisplay: () -> String
 
     private let statusItem: NSStatusItem
 
@@ -24,6 +26,9 @@ final class StatusBarController: NSObject {
         menu.autoenablesItems = false
         menu.addItem(openItem)
         menu.addItem(screenshotItem)
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(currentShortcutItem)
+        menu.addItem(editShortcutItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(clearUnpinnedItem)
         menu.addItem(clearAllItem)
@@ -84,6 +89,26 @@ final class StatusBarController: NSObject {
         return item
     }()
 
+    private lazy var currentShortcutItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Shortcut: \(currentShortcutDisplay())",
+            action: nil,
+            keyEquivalent: ""
+        )
+        item.isEnabled = false
+        return item
+    }()
+
+    private lazy var editShortcutItem: NSMenuItem = {
+        let item = NSMenuItem(
+            title: "Edit Shortcut...",
+            action: #selector(editShortcutFromMenu),
+            keyEquivalent: ","
+        )
+        item.target = self
+        return item
+    }()
+
     private lazy var quitItem: NSMenuItem = {
         let item = NSMenuItem(
             title: "Quit",
@@ -100,16 +125,20 @@ final class StatusBarController: NSObject {
         onCaptureScreenshot: @escaping () -> Void,
         onClearUnpinned: @escaping () -> Void,
         onClearAll: @escaping () -> Void,
+        onEditShortcut: @escaping () -> Void,
         onToggleMonitoring: @escaping () -> Void,
-        isMonitoringEnabled: @escaping () -> Bool
+        isMonitoringEnabled: @escaping () -> Bool,
+        currentShortcutDisplay: @escaping () -> String
     ) {
         self.onPrimaryClick = onPrimaryClick
         self.onOpenHistory = onOpenHistory
         self.onCaptureScreenshot = onCaptureScreenshot
         self.onClearUnpinned = onClearUnpinned
         self.onClearAll = onClearAll
+        self.onEditShortcut = onEditShortcut
         self.onToggleMonitoring = onToggleMonitoring
         self.isMonitoringEnabled = isMonitoringEnabled
+        self.currentShortcutDisplay = currentShortcutDisplay
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         configureStatusItem()
@@ -144,6 +173,7 @@ final class StatusBarController: NSObject {
 
     private func showContextMenu() {
         toggleMonitorItem.title = isMonitoringEnabled() ? "Pause Monitoring" : "Resume Monitoring"
+        currentShortcutItem.title = "Shortcut: \(currentShortcutDisplay())"
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
@@ -167,6 +197,10 @@ final class StatusBarController: NSObject {
 
     @objc private func clearAllFromMenu() {
         onClearAll()
+    }
+
+    @objc private func editShortcutFromMenu() {
+        onEditShortcut()
     }
 
     @objc private func quitFromMenu() {

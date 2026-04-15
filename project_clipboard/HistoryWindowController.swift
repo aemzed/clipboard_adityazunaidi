@@ -8,11 +8,17 @@
 import AppKit
 import SwiftUI
 
+private final class SpotlightPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 @MainActor
 final class HistoryWindowController: NSObject, NSWindowDelegate {
     private let store: ClipboardStore
     private let monitor: ClipboardMonitor
     private var window: NSWindow?
+    private var pendingDismissWorkItem: DispatchWorkItem?
 
     init(store: ClipboardStore, monitor: ClipboardMonitor) {
         self.store = store
@@ -39,8 +45,24 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
         window?.orderOut(nil)
     }
 
+    func dismissAfterCopy() {
+        guard window != nil else { return }
+
+        pendingDismissWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.performDismissAfterCopy()
+        }
+        pendingDismissWorkItem = workItem
+        DispatchQueue.main.async(execute: workItem)
+    }
+
     private func show(_ window: NSWindow) {
+        pendingDismissWorkItem?.cancel()
+        pendingDismissWorkItem = nil
         NSApp.activate(ignoringOtherApps: true)
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
         window.makeKeyAndOrderFront(nil)
     }
 
@@ -59,18 +81,31 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
         let content = ContentView(store: store, monitor: monitor)
         let hostingController = NSHostingController(rootView: content)
 
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Clipboard History"
-        window.setContentSize(preferredWindowSize())
-        window.minSize = NSSize(width: 860, height: 520)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        let size = preferredWindowSize()
+        let window = SpotlightPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled, .fullSizeContentView, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = hostingController
+        window.title = "Papan Klip"
+        window.setContentSize(size)
+        window.minSize = size
+        window.maxSize = size
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isOpaque = false
         window.backgroundColor = .clear
+        window.isFloatingPanel = true
+        window.level = .floating
+        window.hasShadow = true
         window.isMovableByWindowBackground = true
-        window.collectionBehavior = [.moveToActiveSpace]
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isReleasedWhenClosed = false
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
         window.center()
         window.delegate = self
         hostingController.view.wantsLayer = true
@@ -81,15 +116,29 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
 
     private func preferredWindowSize() -> NSSize {
         guard let visibleFrame = NSScreen.main?.visibleFrame else {
-            return NSSize(width: 1120, height: 680)
+            return NSSize(width: 880, height: 560)
         }
 
-        let preferredWidth = min(max(980, visibleFrame.width * 0.58), visibleFrame.width * 0.9)
-        let preferredHeight = min(max(560, visibleFrame.height * 0.62), visibleFrame.height * 0.9)
+        let preferredWidth = min(max(820, visibleFrame.width * 0.50), 980)
+        let preferredHeight = min(max(520, visibleFrame.height * 0.56), 640)
 
         return NSSize(
             width: preferredWidth.rounded(.toNearestOrAwayFromZero),
             height: preferredHeight.rounded(.toNearestOrAwayFromZero)
         )
+    }
+
+    private func performDismissAfterCopy() {
+        pendingDismissWorkItem = nil
+        guard let window else { return }
+
+        if window.styleMask.contains(.miniaturizable) {
+            window.miniaturize(nil)
+            if window.isMiniaturized {
+                return
+            }
+        }
+
+        window.orderOut(nil)
     }
 }

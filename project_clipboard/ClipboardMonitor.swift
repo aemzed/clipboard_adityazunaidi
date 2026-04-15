@@ -110,6 +110,24 @@ final class ClipboardMonitor: ObservableObject {
         }
 
         if let text = pasteboard.string(forType: .string) {
+            if let rtfData = pasteboard.data(forType: .rtf),
+               !rtfData.isEmpty,
+               let attributed = try? NSAttributedString(
+                   data: rtfData,
+                   options: [.documentType: NSAttributedString.DocumentType.rtf],
+                   documentAttributes: nil
+               ) {
+                let plain = attributed.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !plain.isEmpty else { return nil }
+                return ClipboardPayload(
+                    type: .richText,
+                    value: attributed.string,
+                    preview: truncate(plain),
+                    capturedAt: captureDate,
+                    binaryData: rtfData
+                )
+            }
+
             let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else { return nil }
             let type: ClipboardContentType = isLikelyURL(cleaned) ? .url : .text

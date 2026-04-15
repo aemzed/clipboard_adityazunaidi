@@ -9,6 +9,7 @@ import Foundation
 
 enum ClipboardContentType: String, Codable, CaseIterable {
     case text
+    case richText
     case url
     case file
     case image
@@ -17,15 +18,17 @@ enum ClipboardContentType: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .text:
-            return "Text"
+            return "Teks"
+        case .richText:
+            return "Rich Text"
         case .url:
             return "URL"
         case .file:
             return "File"
         case .image:
-            return "Image"
+            return "Gambar"
         case .unknown:
-            return "Unknown"
+            return "Lainnya"
         }
     }
 
@@ -33,6 +36,8 @@ enum ClipboardContentType: String, Codable, CaseIterable {
         switch self {
         case .text:
             return "text.alignleft"
+        case .richText:
+            return "textformat"
         case .url:
             return "link"
         case .file:
@@ -41,6 +46,23 @@ enum ClipboardContentType: String, Codable, CaseIterable {
             return "photo"
         case .unknown:
             return "questionmark.square.dashed"
+        }
+    }
+
+    var searchAliases: [String] {
+        switch self {
+        case .text:
+            return ["teks", "text", "plain text", "string"]
+        case .richText:
+            return ["rich text", "rtf", "formatted text", "teks kaya"]
+        case .url:
+            return ["url", "link", "tautan", "alamat web"]
+        case .file:
+            return ["file", "dokumen", "path", "folder"]
+        case .image:
+            return ["gambar", "image", "foto", "photo", "png", "jpg"]
+        case .unknown:
+            return ["lainnya", "unknown"]
         }
     }
 }

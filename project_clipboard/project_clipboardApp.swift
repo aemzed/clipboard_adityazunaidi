@@ -7,6 +7,7 @@
 
 import AppKit
 import Combine
+import Carbon.HIToolbox
 import SwiftUI
 
 @main
@@ -24,6 +25,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
         AppLifecycle.shared.startServicesIfNeeded()
+    }
+
+    func application(_ application: NSApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
+        false
+    }
+
+    func application(_ application: NSApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
+        false
     }
 
     @objc func openHistoryWindow() {
@@ -95,7 +104,10 @@ final class AppLifecycle: ObservableObject {
                 self?.store.clearUnpinned()
             },
             onClearAll: { [weak self] in
-                self?.store.clearAll()
+                self?.confirmAndClearAllHistory()
+            },
+            onEditShortcut: { [weak self] in
+                self?.presentShortcutEditor()
             },
             onToggleMonitoring: { [weak self] in
                 guard let self else { return }
@@ -103,6 +115,9 @@ final class AppLifecycle: ObservableObject {
             },
             isMonitoringEnabled: { [weak self] in
                 self?.monitor.isMonitoring ?? false
+            },
+            currentShortcutDisplay: { [weak self] in
+                self?.activeShortcutDisplay ?? "Not Active"
             }
         )
 
@@ -142,12 +157,66 @@ final class AppLifecycle: ObservableObject {
         windowController.show()
     }
 
+    func dismissHistoryWindowAfterCopy() {
+        windowController.dismissAfterCopy()
+    }
+
     func captureScreenshotToClipboard() {
         windowController.hide()
 
         // Let the window finish hiding before invoking interactive screenshot UI.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             self.runScreenshotCapture()
+        }
+    }
+
+    func confirmAndClearAllHistory() {
+        guard !store.entries.isEmpty else { return }
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Clear all clipboard history?"
+        alert.informativeText = "This will remove \(store.entries.count) items from local history."
+        alert.addButton(withTitle: "Clear All")
+        alert.addButton(withTitle: "Cancel")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            store.clearAll()
+        }
+    }
+
+    func presentShortcutEditor() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let editorView = ShortcutEditorAccessoryView(shortcut: preferredShortcut)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Edit Global Shortcut"
+        alert.informativeText = "Set keyboard shortcut to open Clipboard History."
+        alert.accessoryView = editorView
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let candidate = editorView.shortcutValue
+        guard candidate.modifiers != 0 else {
+            showInfoAlert(
+                title: "Shortcut is invalid",
+                message: "Pick at least one modifier key (Command, Shift, Option, or Control)."
+            )
+            return
+        }
+
+        let exact = updatePreferredShortcut(candidate)
+        guard exact else {
+            showInfoAlert(
+                title: "Shortcut conflict",
+                message: shortcutStatusMessage
+            )
+            return
         }
     }
 
@@ -186,5 +255,95 @@ final class AppLifecycle: ObservableObject {
     private static func savePreferredShortcut(_ shortcut: HotKeyShortcut) {
         guard let data = try? JSONEncoder().encode(shortcut) else { return }
         UserDefaults.standard.set(data, forKey: shortcutDefaultsKey)
+    }
+
+    private func showInfoAlert(title: String, message: String) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+}
+
+private final class ShortcutEditorAccessoryView: NSView {
+    private let keyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let commandCheckbox = NSButton(checkboxWithTitle: "Command", target: nil, action: nil)
+    private let shiftCheckbox = NSButton(checkboxWithTitle: "Shift", target: nil, action: nil)
+    private let optionCheckbox = NSButton(checkboxWithTitle: "Option", target: nil, action: nil)
+    private let controlCheckbox = NSButton(checkboxWithTitle: "Control", target: nil, action: nil)
+
+    init(shortcut: HotKeyShortcut) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+
+        let keyLabel = NSTextField(labelWithString: "Key:")
+        keyLabel.font = .systemFont(ofSize: 12, weight: .medium)
+
+        keyPopup.translatesAutoresizingMaskIntoConstraints = false
+        keyPopup.font = .systemFont(ofSize: 12)
+        keyPopup.addItems(withTitles: ShortcutCatalog.keyOptions.map(\.label))
+
+        if let selectedIndex = ShortcutCatalog.keyOptions.firstIndex(where: { $0.keyCode == shortcut.keyCode }) {
+            keyPopup.selectItem(at: selectedIndex)
+        } else {
+            keyPopup.selectItem(at: 0)
+        }
+
+        commandCheckbox.state = (shortcut.modifiers & UInt32(cmdKey)) != 0 ? .on : .off
+        shiftCheckbox.state = (shortcut.modifiers & UInt32(shiftKey)) != 0 ? .on : .off
+        optionCheckbox.state = (shortcut.modifiers & UInt32(optionKey)) != 0 ? .on : .off
+        controlCheckbox.state = (shortcut.modifiers & UInt32(controlKey)) != 0 ? .on : .off
+
+        [commandCheckbox, shiftCheckbox, optionCheckbox, controlCheckbox].forEach {
+            $0.font = .systemFont(ofSize: 12)
+        }
+
+        let keyRow = NSStackView(views: [keyLabel, keyPopup])
+        keyRow.orientation = .horizontal
+        keyRow.spacing = 8
+        keyRow.alignment = .centerY
+
+        let modifierRow = NSStackView(views: [
+            commandCheckbox, shiftCheckbox, optionCheckbox, controlCheckbox
+        ])
+        modifierRow.orientation = .horizontal
+        modifierRow.spacing = 10
+        modifierRow.alignment = .centerY
+
+        let root = NSStackView(views: [keyRow, modifierRow])
+        root.orientation = .vertical
+        root.spacing = 10
+        root.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(root)
+
+        NSLayoutConstraint.activate([
+            root.topAnchor.constraint(equalTo: topAnchor),
+            root.leadingAnchor.constraint(equalTo: leadingAnchor),
+            root.trailingAnchor.constraint(equalTo: trailingAnchor),
+            root.bottomAnchor.constraint(equalTo: bottomAnchor),
+            keyPopup.widthAnchor.constraint(equalToConstant: 64),
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    var shortcutValue: HotKeyShortcut {
+        let selectedIndex = max(0, keyPopup.indexOfSelectedItem)
+        let keyCode = ShortcutCatalog.keyOptions[selectedIndex].keyCode
+
+        var modifiers: UInt32 = 0
+        if commandCheckbox.state == .on { modifiers |= UInt32(cmdKey) }
+        if shiftCheckbox.state == .on { modifiers |= UInt32(shiftKey) }
+        if optionCheckbox.state == .on { modifiers |= UInt32(optionKey) }
+        if controlCheckbox.state == .on { modifiers |= UInt32(controlKey) }
+
+        return HotKeyShortcut(keyCode: keyCode, modifiers: modifiers)
     }
 }

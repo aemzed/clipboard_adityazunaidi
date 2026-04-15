@@ -18,17 +18,17 @@ struct HotKeyShortcut: Codable, Equatable {
 
     static let defaultPrimary = HotKeyShortcut(
         keyCode: UInt32(kVK_ANSI_V),
-        modifiers: UInt32(controlKey | optionKey | cmdKey)
+        modifiers: UInt32(shiftKey | cmdKey)
     )
 
     static let defaultFallbacks: [HotKeyShortcut] = [
         HotKeyShortcut(
-            keyCode: UInt32(kVK_ANSI_C),
+            keyCode: UInt32(kVK_ANSI_V),
             modifiers: UInt32(controlKey | optionKey | cmdKey)
         ),
         HotKeyShortcut(
-            keyCode: UInt32(kVK_ANSI_V),
-            modifiers: UInt32(shiftKey | cmdKey)
+            keyCode: UInt32(kVK_ANSI_C),
+            modifiers: UInt32(controlKey | optionKey | cmdKey)
         ),
     ]
 }
