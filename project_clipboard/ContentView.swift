@@ -271,33 +271,39 @@ private struct ShortcutSettingsSheet: View {
         NavigationStack {
             Form {
                 Section("Aktif Saat Ini") {
-                    Text(lifecycle.activeShortcutDisplay)
-                        .font(.headline)
+                    HStack {
+                        Image(systemName: "keyboard")
+                            .foregroundStyle(.secondary)
+                        Text(lifecycle.activeShortcutDisplay)
+                            .font(.headline)
+                    }
                 }
 
-                Section("Custom Shortcut") {
+                Section("Key") {
                     Picker("Key", selection: $selectedKeyCode) {
                         ForEach(ShortcutCatalog.keyOptions) { option in
                             Text(option.label).tag(option.keyCode)
                         }
                     }
+                    .labelsHidden()
+                }
 
-                    Toggle("Command", isOn: $useCommand)
-                    Toggle("Option", isOn: $useOption)
-                    Toggle("Control", isOn: $useControl)
-                    Toggle("Shift", isOn: $useShift)
+                Section("Modifier Keys") {
+                    Toggle("Command (⌘)", isOn: $useCommand)
+                    Toggle("Shift (⇧)", isOn: $useShift)
+                    Toggle("Option (⌥)", isOn: $useOption)
+                    Toggle("Control (⌃)", isOn: $useControl)
+                }
 
-                    if !localMessage.isEmpty {
-                        Text(localMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if !lifecycle.shortcutStatusMessage.isEmpty {
-                        Text(lifecycle.shortcutStatusMessage)
+                if !localMessage.isEmpty || !lifecycle.shortcutStatusMessage.isEmpty {
+                    Section {
+                        Text(localMessage.isEmpty ? lifecycle.shortcutStatusMessage : localMessage)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("Shortcut Settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -310,10 +316,11 @@ private struct ShortcutSettingsSheet: View {
                     Button("Simpan") {
                         saveShortcut()
                     }
+                    .keyboardShortcut(.defaultAction)
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 360)
+        .frame(width: 420, height: 420)
     }
 
     private func saveShortcut() {
