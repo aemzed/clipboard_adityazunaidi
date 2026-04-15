@@ -45,19 +45,13 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack {
-            TranslucentBackgroundView(material: .hudWindow)
-                .ignoresSafeArea()
-
-            VStack(spacing: 14) {
-                searchBar
-                quickActionsBar
-                resultPanel
-            }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 18)
+        VStack(spacing: 14) {
+            searchBar
+            quickActionsBar
+            resultPanel
         }
-        .background(Color.clear)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
         .onAppear {
             ensureSelection()
             DispatchQueue.main.async {
@@ -97,8 +91,7 @@ struct ContentView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.20))
+            ItemBlurBackground(cornerRadius: 18)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -113,7 +106,7 @@ struct ContentView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: 10) {
+                        LazyVStack(spacing: 12) {
                             ForEach(displayEntries) { entry in
                                 SpotlightClipboardRow(
                                     entry: entry,
@@ -154,57 +147,73 @@ struct ContentView: View {
     }
 
     private var quickActionsBar: some View {
-        HStack(spacing: 8) {
-            Text("Shortcut: \(lifecycle.activeShortcutDisplay)")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.82))
-                .lineLimit(1)
-
-            Spacer(minLength: 8)
-
-            Button {
-                lifecycle.presentShortcutEditor()
-            } label: {
-                Label("Edit Shortcut", systemImage: "keyboard")
-                    .font(.caption.weight(.semibold))
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.white.opacity(0.18))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color.white.opacity(0.26), lineWidth: 1)
-                    )
+        VStack(spacing: 6) {
+            HStack {
+                Image(systemName: "command")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.70))
+                Text(lifecycle.activeShortcutDisplay)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.82))
+                    .lineLimit(1)
+                Spacer()
             }
-            .buttonStyle(.plain)
 
-            Button(role: .destructive) {
-                lifecycle.confirmAndClearAllHistory()
-            } label: {
-                Label("Clear All", systemImage: "trash")
-                    .font(.caption.weight(.semibold))
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Color.red.opacity(0.30))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(Color.white.opacity(0.24), lineWidth: 1)
-                    )
+            HStack(spacing: 8) {
+                Button {
+                    lifecycle.presentShortcutEditor()
+                } label: {
+                    Label("Edit Shortcut", systemImage: "keyboard")
+                        .font(.caption.weight(.semibold))
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.18))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button(role: .destructive) {
+                    lifecycle.confirmAndClearAllHistory()
+                } label: {
+                    Label("Clear All", systemImage: "trash")
+                        .font(.caption.weight(.semibold))
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.red.opacity(0.30))
+                        )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(store.entries.isEmpty)
+                .opacity(store.entries.isEmpty ? 0.55 : 1.0)
+
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .disabled(store.entries.isEmpty)
-            .opacity(store.entries.isEmpty ? 0.55 : 1.0)
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            ItemBlurBackground(cornerRadius: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.20), lineWidth: 1)
+        )
     }
 
     private var emptyState: some View {
@@ -223,6 +232,13 @@ struct ContentView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 36)
+        .background(
+            ItemBlurBackground(cornerRadius: 16)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.20), lineWidth: 1)
+        )
     }
 
     private func moveSelection(_ direction: MoveCommandDirection) {
@@ -322,21 +338,23 @@ struct ContentView: View {
     }
 }
 
-private struct TranslucentBackgroundView: NSViewRepresentable {
-    let material: NSVisualEffectView.Material
+private struct ItemBlurBackground: NSViewRepresentable {
+    let cornerRadius: CGFloat
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.state = .active
-        view.material = material
-        view.blendingMode = .withinWindow
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.wantsLayer = true
+        view.layer?.cornerRadius = cornerRadius
+        view.layer?.masksToBounds = true
+        view.layer?.cornerCurve = .continuous
         return view
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
         nsView.state = .active
-        nsView.blendingMode = .withinWindow
     }
 }
 
@@ -392,8 +410,11 @@ private struct SpotlightClipboardRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isSelected ? Color.white.opacity(0.28) : Color.white.opacity(0.16))
+            ZStack {
+                ItemBlurBackground(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.12) : Color.clear)
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

@@ -307,16 +307,27 @@ private final class ShortcutEditorAccessoryView: NSView {
         keyRow.spacing = 8
         keyRow.alignment = .centerY
 
-        let modifierRow = NSStackView(views: [
-            commandCheckbox, shiftCheckbox, optionCheckbox, controlCheckbox
-        ])
-        modifierRow.orientation = .horizontal
-        modifierRow.spacing = 10
-        modifierRow.alignment = .centerY
+        let modifierLabel = NSTextField(labelWithString: "Modifiers:")
+        modifierLabel.font = .systemFont(ofSize: 12, weight: .medium)
 
-        let root = NSStackView(views: [keyRow, modifierRow])
+        let modifierRow1 = NSStackView(views: [commandCheckbox, shiftCheckbox])
+        modifierRow1.orientation = .horizontal
+        modifierRow1.spacing = 16
+        modifierRow1.alignment = .centerY
+
+        let modifierRow2 = NSStackView(views: [optionCheckbox, controlCheckbox])
+        modifierRow2.orientation = .horizontal
+        modifierRow2.spacing = 16
+        modifierRow2.alignment = .centerY
+
+        let modifierSection = NSStackView(views: [modifierLabel, modifierRow1, modifierRow2])
+        modifierSection.orientation = .vertical
+        modifierSection.spacing = 6
+        modifierSection.alignment = .leading
+
+        let root = NSStackView(views: [keyRow, modifierSection])
         root.orientation = .vertical
-        root.spacing = 10
+        root.spacing = 14
         root.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(root)
@@ -326,7 +337,8 @@ private final class ShortcutEditorAccessoryView: NSView {
             root.leadingAnchor.constraint(equalTo: leadingAnchor),
             root.trailingAnchor.constraint(equalTo: trailingAnchor),
             root.bottomAnchor.constraint(equalTo: bottomAnchor),
-            keyPopup.widthAnchor.constraint(equalToConstant: 64),
+            keyPopup.widthAnchor.constraint(equalToConstant: 80),
+            widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
         ])
     }
 
