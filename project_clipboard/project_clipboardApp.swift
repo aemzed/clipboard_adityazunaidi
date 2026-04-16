@@ -194,7 +194,7 @@ final class AppLifecycle: ObservableObject {
         let content = ShortcutEditorModalContent(model: model)
         let hostingController = NSHostingController(rootView: content)
 
-        let panel = NSPanel(
+        let panel = ShortcutEditorPanel(
             contentRect: .zero,
             styleMask: [.titled, .closable],
             backing: .buffered,
@@ -204,6 +204,9 @@ final class AppLifecycle: ObservableObject {
         panel.title = "Edit Global Shortcut"
         panel.setContentSize(NSSize(width: 340, height: 320))
         panel.center()
+        panel.isFloatingPanel = true
+        panel.level = .modalPanel
+        panel.becomesKeyOnlyIfNeeded = false
         panel.isReleasedWhenClosed = false
 
         model.onCancel = {
@@ -223,6 +226,7 @@ final class AppLifecycle: ObservableObject {
             NSApp.stopModal(withCode: .cancel)
         }
 
+        panel.makeKeyAndOrderFront(nil)
         let response = NSApp.runModal(for: panel)
         NotificationCenter.default.removeObserver(closeObserver)
         panel.orderOut(nil)
@@ -325,6 +329,11 @@ private final class ShortcutEditorModel: ObservableObject {
     }
 }
 
+private final class ShortcutEditorPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 private struct ShortcutEditorModalContent: View {
     @ObservedObject var model: ShortcutEditorModel
 
@@ -356,6 +365,7 @@ private struct ShortcutEditorModalContent: View {
                 Toggle("Option (⌥)", isOn: $model.useOption)
                 Toggle("Control (⌃)", isOn: $model.useControl)
             }
+            .toggleStyle(.checkbox)
 
             Spacer()
 
