@@ -147,37 +147,37 @@ struct ContentView: View {
 
     private var quickActionsBar: some View {
         VStack(spacing: 6) {
-            HStack {
-                Image(systemName: "command")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.70))
-                Text(lifecycle.activeShortcutDisplay)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.82))
-                    .lineLimit(1)
-                Spacer()
-            }
+//            HStack {
+//                Image(systemName: "command")
+//                    .font(.caption2)
+//                    .foregroundStyle(.white.opacity(0.70))
+//                Text(lifecycle.activeShortcutDisplay)
+//                    .font(.caption)
+//                    .foregroundStyle(.white.opacity(0.82))
+//                    .lineLimit(1)
+//                Spacer()
+//            }
 
             HStack(spacing: 8) {
-                Button {
-                    lifecycle.presentShortcutEditor()
-                } label: {
-                    Label("Edit Shortcut", systemImage: "keyboard")
-                        .font(.caption.weight(.semibold))
-                        .labelStyle(.titleAndIcon)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(Color.white.opacity(0.18))
-                        )
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(Color.white.opacity(0.26), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
+//                Button {
+//                    lifecycle.presentShortcutEditor()
+//                } label: {
+//                    Label("Edit Shortcut", systemImage: "keyboard")
+//                        .font(.caption.weight(.semibold))
+//                        .labelStyle(.titleAndIcon)
+//                        .foregroundStyle(.white)
+//                        .padding(.horizontal, 10)
+//                        .padding(.vertical, 5)
+//                        .background(
+//                            Capsule(style: .continuous)
+//                                .fill(Color.white.opacity(0.18))
+//                        )
+//                        .overlay(
+//                            Capsule(style: .continuous)
+//                                .stroke(Color.white.opacity(0.26), lineWidth: 1)
+//                        )
+//                }
+//                .buttonStyle(.plain)
 
                 Button(role: .destructive) {
                     lifecycle.confirmAndClearAllHistory()
