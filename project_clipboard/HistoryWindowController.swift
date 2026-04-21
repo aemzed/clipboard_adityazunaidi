@@ -20,6 +20,9 @@ private final class SpotlightPanel: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown {
             switch event.keyCode {
+            case 53: // Escape — hide the panel
+                orderOut(nil)
+                return
             case 125: // Down arrow
                 NotificationCenter.default.post(name: .spotlightMoveDown, object: nil)
                 return
@@ -151,15 +154,6 @@ final class HistoryWindowController: NSObject, NSWindowDelegate {
 
     private func performDismissAfterCopy() {
         pendingDismissWorkItem = nil
-        guard let window else { return }
-
-        if window.styleMask.contains(.miniaturizable) {
-            window.miniaturize(nil)
-            if window.isMiniaturized {
-                return
-            }
-        }
-
-        window.orderOut(nil)
+        window?.orderOut(nil)
     }
 }

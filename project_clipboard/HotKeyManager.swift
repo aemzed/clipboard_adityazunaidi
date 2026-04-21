@@ -90,14 +90,18 @@ final class HotKeyManager {
             &hotKeyRef
         )
 
+        NSLog("[HotKey] Register keyCode=%d modifiers=%d → status=%d (noErr=%d)", shortcut.keyCode, shortcut.modifiers, status, noErr)
+
         guard status == noErr,
             let hotKeyRef
         else {
+            NSLog("[HotKey] Registration FAILED for keyCode=%d modifiers=%d", shortcut.keyCode, shortcut.modifiers)
             return false
         }
 
         activeHotKeyRef = hotKeyRef
         activeHotKeyID = hotKeyID
+        NSLog("[HotKey] Registration SUCCESS: id=%d", hotKeyID)
         return true
     }
 
@@ -127,6 +131,7 @@ final class HotKeyManager {
             return
         }
 
+        NSLog("[HotKey] Hot key PRESSED! id=%d", hotKeyID.id)
         DispatchQueue.main.async { [weak self] in
             self?.onHotKeyPressed?()
         }

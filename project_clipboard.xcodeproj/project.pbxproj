@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0429CC852F8E274000F5561D /* project_clipboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = project_clipboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0429CC852F8E274000F5561D /* project_clipboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = project_clipboard.app; path = "Project Clipboard by Aditya Zunaidi.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0429CC942F8E274200F5561D /* project_clipboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = project_clipboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0429CC9E2F8E274200F5561D /* project_clipboardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = project_clipboardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -398,11 +398,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HFPZV2BBCK;
-				ENABLE_APP_SANDBOX = YES;
-				EXECUTABLE_NAME = project_clipboard;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
+				EXECUTABLE_NAME = project_clipboard;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Project Clipboard by Aditya Zunaidi";
 				INFOPLIST_KEY_CFBundleName = "Project Clipboard by Aditya Zunaidi";
@@ -433,11 +433,11 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HFPZV2BBCK;
-				ENABLE_APP_SANDBOX = YES;
-				EXECUTABLE_NAME = project_clipboard;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
+				EXECUTABLE_NAME = project_clipboard;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Project Clipboard by Aditya Zunaidi";
 				INFOPLIST_KEY_CFBundleName = "Project Clipboard by Aditya Zunaidi";

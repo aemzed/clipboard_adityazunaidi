@@ -27,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppLifecycle.shared.startServicesIfNeeded()
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        AppLifecycle.shared.store.flushPersistence()
+    }
+
     func application(_ application: NSApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
         false
     }

@@ -8,19 +8,43 @@
 import Combine
 import Foundation
 
+// MARK: - ClipboardStore
+
+/// Manages the in-memory clipboard history and coordinates with a ``ClipboardPersistence`` backend.
+///
+/// All published state mutations happen on the `@MainActor`.
+/// Disk I/O is delegated to the injected persistence service, which handles
+/// debouncing and background writes internally.
 @MainActor
 final class ClipboardStore: ObservableObject {
+
+    // MARK: - Published State
+
     @Published private(set) var entries: [ClipboardEntry] = []
 
-    private let historyLimit: Int
-    private let storageURL: URL
+    // MARK: - Private Properties
 
-    init(historyLimit: Int = 20) {
+    private let historyLimit: Int
+    private let persistence: ClipboardPersistence
+
+    // MARK: - Initialization
+
+    /// Creates a clipboard store backed by the given persistence service.
+    /// - Parameters:
+    ///   - historyLimit: Maximum number of entries to retain. Defaults to `20`.
+    ///   - persistence: The storage backend. Pass `nil` to use the default ``DiskPersistenceManager``.
+    init(historyLimit: Int = 20, persistence: ClipboardPersistence? = nil) {
         self.historyLimit = historyLimit
-        self.storageURL = Self.makeStorageURL()
+        self.persistence = persistence ?? DiskPersistenceManager()
         load()
     }
 
+    // MARK: - Public Methods
+
+    /// Adds a clipboard payload as a new entry, or re-promotes an existing duplicate.
+    ///
+    /// Duplicate detection is based on content type and value.
+    /// If the same content already exists, it is moved to the top with an updated timestamp.
     func add(payload: ClipboardPayload) {
         if let first = entries.first,
            first.contentType == payload.type,
@@ -53,6 +77,7 @@ final class ClipboardStore: ObservableObject {
         persist()
     }
 
+    /// Toggles the pinned state for the entry with the given ID.
     func togglePin(for id: UUID) {
         guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].isPinned.toggle()
@@ -60,31 +85,45 @@ final class ClipboardStore: ObservableObject {
         persist()
     }
 
+    /// Deletes a single entry by ID.
     func delete(id: UUID) {
         entries.removeAll(where: { $0.id == id })
         persist()
     }
 
+    /// Deletes multiple entries by their IDs.
     func delete(ids: [UUID]) {
         let idSet = Set(ids)
         entries.removeAll(where: { idSet.contains($0.id) })
         persist()
     }
 
+    /// Removes all unpinned entries.
     func clearUnpinned() {
         entries.removeAll(where: { !$0.isPinned })
         persist()
     }
 
+    /// Removes all entries, including pinned ones.
     func clearAll() {
         entries.removeAll()
         persist()
     }
 
+    /// Returns the entry matching the given ID, if it exists.
     func entry(for id: UUID?) -> ClipboardEntry? {
         guard let id else { return nil }
         return entries.first(where: { $0.id == id })
     }
+
+    /// Immediately flushes any pending persistence to disk.
+    ///
+    /// Call before the application terminates to prevent data loss.
+    func flushPersistence() {
+        persistence.flush(entries)
+    }
+
+    // MARK: - Private Helpers
 
     private func trimHistoryIfNeeded() {
         entries.sort(by: sortRule)
@@ -108,44 +147,13 @@ final class ClipboardStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: storageURL) else {
-            entries = []
-            return
-        }
-
-        guard let decoded = try? JSONDecoder().decode([ClipboardEntry].self, from: data) else {
-            entries = []
-            return
-        }
-
-        entries = decoded.sorted(by: sortRule)
+        let loaded = persistence.load()
+        entries = loaded.sorted(by: sortRule)
         trimHistoryIfNeeded()
         persist()
     }
 
     private func persist() {
-        do {
-            let directory = storageURL.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(entries)
-            try data.write(to: storageURL, options: .atomic)
-        } catch {
-            // Keep app usable even if disk write fails.
-            NSLog("Failed to persist clipboard history: \(error)")
-        }
-    }
-
-    private static func makeStorageURL() -> URL {
-        let base = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-
-        return base
-            .appendingPathComponent("project_clipboard", isDirectory: true)
-            .appendingPathComponent("clipboard_history.json", isDirectory: false)
+        persistence.save(entries)
     }
 }
